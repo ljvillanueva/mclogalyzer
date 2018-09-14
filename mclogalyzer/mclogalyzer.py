@@ -32,6 +32,7 @@ import jinja2
 REGEX_IP = "(\d+)\.(\d+)\.(\d+)\.(\d+)"
 
 REGEX_LOGIN_USERNAME = re.compile("\[Server thread\/INFO\]: ([^]]+)\[")
+REGEX_UUID_USERNAME = re.compile("UUID of player ([^ ]+) is ([^ ]+)")
 REGEX_LOGOUT_USERNAME = re.compile("\[Server thread\/INFO\]: ([^ ]+) lost connection")
 REGEX_LOGOUT_USERNAME2 = re.compile(
     "\[Server thread\/INFO\]:.*GameProfile.*name='?([^ ,']+)'?.* lost connection")
@@ -99,6 +100,7 @@ def capitalize_first(str):
 class UserStats:
     def __init__(self, username=""):
         self._username = username
+        self._uuid = None
         self._logins = 0
 
         self._active_days = set()
@@ -298,6 +300,17 @@ def grep_login_username(line):
     return username.decode("ascii", "ignore").encode("ascii", "ignore")
 
 
+
+def grep_uuid(line):
+    search = REGEX_UUID_USERNAME.search(line)
+    if not search:
+        return ""
+    username = search.group(1).lstrip().rstrip()
+    uuid = search.group(2).lstrip().rstrip()
+    return username, uuid
+
+
+
 def grep_logout_username(line):
     search = REGEX_LOGOUT_USERNAME.search(line)
     if not search:
@@ -443,6 +456,14 @@ def parse_logs(logdir, since=None, whitelist_users=None):
                         achievement_user = users[achievement_username]
                         achievement_user._achievement_count += 1
                         achievement_user._achievements.append(achievement)
+            elif "UUID of player" in line:
+                uuid_username, uuid = grep_uuid(line)
+                if not uuid_username or uuid_username.startswith("/"):
+                    continue
+                if uuid_username not in users:
+                    continue
+                user = users[uuid_username]
+                user._uuid = uuid
             else:
                 death_username, death_type = grep_death(line)
                 death_time = grep_log_datetime(today, line)
